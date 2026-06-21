@@ -100,23 +100,26 @@
 		return t.instances[0];
 	}
 
-	// Convert an instance position to viewport client coordinates.
-	function instClientXY(inst) {
-		var layer = inst.layer;
-		var cx = layer.layerToCanvas(inst.x, inst.y, true);
-		var cy = layer.layerToCanvas(inst.x, inst.y, false);
+	// Convert layer coords -> viewport client coords.
+	// layerToCanvas returns positions in canvas-backing-store pixels; the
+	// canvas may be displayed at a different CSS size (letterbox / scaling),
+	// so scale by (displayed size / backing size).
+	function canvasToClient(layer, lx, ly) {
+		var bx = layer.layerToCanvas(lx, ly, true);
+		var by = layer.layerToCanvas(lx, ly, false);
 		var rect = canvas.getBoundingClientRect();
-		return { x: rect.left + cx, y: rect.top + cy };
+		var sx = canvas.width ? rect.width / canvas.width : 1;
+		var sy = canvas.height ? rect.height / canvas.height : 1;
+		return { x: rect.left + bx * sx, y: rect.top + by * sy };
+	}
+
+	function instClientXY(inst) {
+		return canvasToClient(inst.layer, inst.x, inst.y);
 	}
 
 	function fireInClient(cx, cy, inst) {
-		// extra helper: client coords offset from an instance center
-		var layer = inst.layer;
-		var rect = canvas.getBoundingClientRect();
-		return {
-			x: rect.left + layer.layerToCanvas(inst.x + cx, inst.y + cy, true),
-			y: rect.top  + layer.layerToCanvas(inst.x + cx, inst.y + cy, false)
-		};
+		// client coords offset (cx,cy in layer units) from an instance center
+		return canvasToClient(inst.layer, inst.x + cx, inst.y + cy);
 	}
 
 	function dispatchPointer(type, id, clientX, clientY) {
@@ -275,9 +278,11 @@
 	}
 
 	// ===================== MAIN LOOP ===================================
-	function loop() {
+	var lastCarCheck = 0;
+	function loop(ts) {
 		if (getRuntime()) {
-			detectCar();
+			// car state rarely changes; check ~4x/sec instead of every frame
+			if (!ts || ts - lastCarCheck > 250) { detectCar(); lastCarCheck = ts || 0; }
 			updateMovement();
 		}
 		requestAnimationFrame(loop);

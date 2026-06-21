@@ -1,0 +1,86 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8" />
+	<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+	<title>Mini DAYZ (WebGL test)</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, minimal-ui" />
+	<style type="text/css">
+		* { padding: 0; margin: 0; }
+		html, body { background:#000; color:#fff; overflow:hidden; touch-action:none; width:100%; height:100%; }
+		canvas { touch-action:none; display:block; margin:0 auto; }
+		#glstatus { position:fixed; bottom:8px; right:8px; z-index:99999; font:12px monospace;
+			background:rgba(0,0,0,.8); color:#0f0; padding:6px 10px; border:1px solid #060; border-radius:4px; pointer-events:none; }
+	</style>
+	<script>
+		// Force a WebGL attempt for this page only, using WebGL1 (the old
+		// Construct 2 GLWrap renders black on some WebGL2 contexts) and
+		// allow a software GL context if the GPU is blacklisted.
+		window["MDZ_FORCE_WEBGL"] = true;
+		window["MDZ_NO_WEBGL2"] = true;
+		window["MDZ_ALLOW_SOFTWARE_GL"] = true;
+	</script>
+</head>
+<body>
+	<div id="c2canvasdiv">
+		<canvas id="c2canvas" width="1024" height="768"></canvas>
+	</div>
+	<div id="glstatus">renderer: detecting…</div>
+
+	<script src="jquery-2.1.1.min.js"></script>
+	<script src="c2runtime.js"></script>
+	<script src="perf-tuning.js"></script>
+	<script src="keyboard-controls.js"></script>
+	<script>
+		var el = document.getElementById("glstatus");
+
+		// 1) Independent WebGL probe (runs immediately, before the game loads).
+		//    Tells us if this browser can do HARDWARE WebGL at all.
+		function probeWebGL() {
+			var c = document.createElement("canvas");
+			var names = ["webgl2", "webgl", "experimental-webgl"];
+			var gl = null, used = "";
+			// try strict (hardware-only) first, then allow software
+			var attemptsList = [
+				{ failIfMajorPerformanceCaveat: true },
+				{ failIfMajorPerformanceCaveat: false }
+			];
+			for (var a = 0; a < attemptsList.length && !gl; a++) {
+				for (var i = 0; i < names.length && !gl; i++) {
+					try { gl = c.getContext(names[i], attemptsList[a]); if (gl) used = names[i] + (a ? " (software-allowed)" : " (hardware)"); } catch (e) {}
+				}
+			}
+			if (!gl) return { ok: false, info: "NO WebGL at all" };
+			var renderer = "unknown";
+			try {
+				var dbg = gl.getExtension("WEBGL_debug_renderer_info");
+				if (dbg) renderer = gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL);
+			} catch (e) {}
+			var soft = /swiftshader|software|llvmpipe|microsoft basic/i.test(renderer);
+			return { ok: true, info: used + " | " + renderer, soft: soft };
+		}
+		var probe = probeWebGL();
+		console.log("[probe] WebGL:", probe);
+
+		// 2) Start the game.
+		jQuery(document).ready(function () { cr_createRuntime("c2canvas"); });
+
+		// 3) Report the renderer the GAME actually uses (poll until ready, no timeout).
+		var iv = setInterval(function () {
+			var rt = window.cr_getC2Runtime && window.cr_getC2Runtime();
+			if (rt && (rt.glwrap || rt.ctx)) {
+				if (rt.glwrap) {
+					el.style.color = probe.soft ? "#fa0" : "#0f0";
+					el.textContent = "GAME: WebGL " + (probe.soft ? "(SOFTWARE/slow) " : "") + "— " + (rt.glUnmaskedRenderer || probe.info);
+				} else {
+					el.style.color = "#f55";
+					el.textContent = "GAME: Canvas2D (WebGL not used) | probe: " + probe.info;
+				}
+				clearInterval(iv);
+			} else {
+				el.textContent = "loading… | probe: " + probe.info;
+			}
+		}, 300);
+	</script>
+</body>
+</html>

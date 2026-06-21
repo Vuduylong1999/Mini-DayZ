@@ -2029,9 +2029,9 @@ if (typeof Object.getPrototypeOf !== "function")
 					"depth": false,
 					"antialias": false,
 					"powerPreference": "high-performance",
-					"failIfMajorPerformanceCaveat": true
+					"failIfMajorPerformanceCaveat": !window["MDZ_ALLOW_SOFTWARE_GL"]
 				};
-				if (!this.isAndroid)
+				if (!this.isAndroid && !window["MDZ_NO_WEBGL2"])
 					this.gl = this.canvas.getContext("webgl2", attribs);
 				if (!this.gl)
 				{
@@ -2840,7 +2840,7 @@ if (typeof Object.getPrototypeOf !== "function")
 		this.files_subfolder = pm[8];
 		this.pixel_rounding = pm[9];
 		this.aspect_scale = 1.0;
-		this.enableWebGL = pm[13];
+		this.enableWebGL = pm[13] || !!window["MDZ_FORCE_WEBGL"];
 		this.linearSampling = pm[14];
 		this.clearBackground = pm[15];
 		this.versionstr = pm[16];
