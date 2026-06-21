@@ -1,0 +1,50 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+	<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+	<title>Mini DAYZ (Web)</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, minimal-ui" />
+	<style type="text/css">
+		* { padding: 0; margin: 0; }
+		html, body {
+			background: #000;
+			color: #fff;
+			overflow: hidden;
+			touch-action: none;
+			-ms-touch-action: none;
+			width: 100%;
+			height: 100%;
+		}
+		canvas {
+			touch-action: none;
+			-ms-touch-action: none;
+			display: block;
+			margin: 0 auto;
+		}
+	</style>
+</head>
+<body>
+	<div id="c2canvasdiv">
+		<canvas id="c2canvas" width="1024" height="768">
+			<h1>Your browser does not appear to support HTML5.</h1>
+		</canvas>
+	</div>
+
+	<!-- Construct 2 exported games require jQuery. -->
+	<script src="jquery-2.1.1.min.js"></script>
+
+	<!-- The runtime script. -->
+	<script src="c2runtime.js"></script>
+
+	<!-- PC keyboard / mouse control layer (injected; does not modify the game). -->
+	<script src="keyboard-controls.js"></script>
+
+	<script>
+		// Pure web mode: no Cordova. Start the runtime once the DOM is ready.
+		jQuery(document).ready(function () {
+			cr_createRuntime("c2canvas");
+		});
+	</script>
+</body>
+</html>
