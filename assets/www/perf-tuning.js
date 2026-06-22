@@ -24,6 +24,16 @@
 	var hooked = false;
 
 	function applyScale(rt) {
+		// The engine only upscales a low-res render back to full screen when it
+		// renders through an intermediate texture, i.e. when
+		// fullscreenScalingQuality === false (window >= game's native size).
+		//
+		// When fullscreenScalingQuality === true (window SMALLER than native -
+		// the common case on a laptop) the engine draws straight to the canvas.
+		// Shrinking draw_width in that mode squashes the whole scene into a
+		// corner of the canvas -> broken / misaligned UI. So skip scaling there
+		// and leave the engine's own sizing untouched.
+		if (rt.fullscreenScalingQuality) return;
 		var s = RENDER_SCALE;
 		rt.draw_width  = Math.max(64, Math.round(rt.draw_width  * s));
 		rt.draw_height = Math.max(64, Math.round(rt.draw_height * s));

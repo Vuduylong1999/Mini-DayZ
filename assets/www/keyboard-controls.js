@@ -61,6 +61,7 @@
 
 	// Pointer IDs (each simulated finger needs a unique id).
 	var PID_DPAD = 1;
+	var PID_MOUSE = 2;   // the real mouse, forwarded as one "finger"
 	var pidCounter = 100;
 	var actionPid = {}; // action -> pointerId currently held
 
@@ -101,16 +102,18 @@
 	}
 
 	// Convert layer coords -> viewport client coords.
-	// layerToCanvas returns positions in canvas-backing-store pixels; the
-	// canvas may be displayed at a different CSS size (letterbox / scaling),
-	// so scale by (displayed size / backing size).
+	// layerToCanvas(getx, using_draw_area=false) already returns CSS pixels
+	// relative to the canvas top-left: the engine divides by devicePixelRatio
+	// for retina/HiDPI displays. The game's own touch handler computes the
+	// inverse as (event.pageX - canvasOffset.left) with NO extra scaling, so
+	// we must mirror that exactly: client = canvasRect + layerToCanvas, scale 1.
+	// (The previous rect.width/canvas.width factor double-corrected DPR and
+	// shoved every button toward the top-left on HiDPI laptop screens.)
 	function canvasToClient(layer, lx, ly) {
 		var bx = layer.layerToCanvas(lx, ly, true);
 		var by = layer.layerToCanvas(lx, ly, false);
 		var rect = canvas.getBoundingClientRect();
-		var sx = canvas.width ? rect.width / canvas.width : 1;
-		var sy = canvas.height ? rect.height / canvas.height : 1;
-		return { x: rect.left + bx * sx, y: rect.top + by * sy };
+		return { x: rect.left + bx, y: rect.top + by };
 	}
 
 	function instClientXY(inst) {
@@ -128,7 +131,7 @@
 		try {
 			ev = new PointerEvent(type, {
 				bubbles: true, cancelable: true, composed: true,
-				pointerId: id, pointerType: "touch", isPrimary: id === PID_DPAD,
+				pointerId: id, pointerType: "touch", isPrimary: (id === PID_DPAD || id === PID_MOUSE),
 				clientX: clientX, clientY: clientY,
 				width: 1, height: 1, pressure: type === "pointerup" ? 0 : 0.5,
 				view: window
@@ -255,18 +258,44 @@
 	window.addEventListener("blur", function () {
 		keysDown = {};
 		for (var a in actionPid) if (actionPid[a] != null) releaseAction(a);
+		if (mouseDown) { mouseDown = false; dispatchPointer("pointerup", PID_MOUSE, 0, 0); }
 	});
 
-	// ===================== MOUSE -> attack / zoom ======================
+	// ===================== MOUSE -> a real "finger" ====================
+	// The game is a mobile build: it ignores mouse events entirely (the Touch
+	// plugin bails out when pointerType === "mouse", and useMouseInput is off).
+	// So forward the LEFT mouse button as a synthetic touch at the exact cursor
+	// position. This makes the mouse behave like a finger for EVERYTHING: menu
+	// buttons, the control-option chooser, click-to-move, looting, inventory
+	// drag, on-screen buttons, etc. Attacking is on Space (see KEYMAP).
+	//
+	// Right button is a convenience hold for "zoom" (no-op if that button is
+	// absent in the current control scheme).
+	var mouseDown = false;
 	canvas_ready_then(function (cv) {
-		cv.addEventListener("mousedown", function (e) {
-			if (e.button === 0) pressAction("attack");
-			else if (e.button === 2) pressAction("zoom");
-		});
+		// Listen on window so a drag that leaves the canvas still tracks/releases.
+		window.addEventListener("mousedown", function (e) {
+			if (e.button === 0) {
+				mouseDown = true;
+				dispatchPointer("pointerdown", PID_MOUSE, e.clientX, e.clientY);
+				e.preventDefault();
+			} else if (e.button === 2) {
+				pressAction("zoom");
+			}
+		}, true);
+		window.addEventListener("mousemove", function (e) {
+			if (mouseDown) dispatchPointer("pointermove", PID_MOUSE, e.clientX, e.clientY);
+		}, true);
 		window.addEventListener("mouseup", function (e) {
-			if (e.button === 0) releaseAction("attack");
-			else if (e.button === 2) releaseAction("zoom");
-		});
+			if (e.button === 0) {
+				if (mouseDown) {
+					mouseDown = false;
+					dispatchPointer("pointerup", PID_MOUSE, e.clientX, e.clientY);
+				}
+			} else if (e.button === 2) {
+				releaseAction("zoom");
+			}
+		}, true);
 		cv.addEventListener("contextmenu", function (e) { e.preventDefault(); });
 	});
 
@@ -302,8 +331,9 @@
 		hintEl.textContent =
 			"MINI DAYZ - PHIM TAT  (H de an/hien)\n" +
 			"-----------------------------\n" +
-			"W A S D / mui ten : Di chuyen\n" +
-			"Space / Chuot trai: Tan cong\n" +
+			"Chuot trai        : Chon / Di chuyen (click)\n" +
+			"W A S D / mui ten : Di chuyen (joystick)\n" +
+			"Space             : Tan cong\n" +
 			"Shift / Chuot phai: Ngam (zoom)\n" +
 			"R                 : Nap dan\n" +
 			"E / F             : Tuong tac\n" +
